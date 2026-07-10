@@ -10,8 +10,9 @@ interface MediaViewerModalProps {
 }
 
 function isPdfUrl(url: string, fileName?: string): boolean {
-  const clean = url.split('?')[0].toLowerCase();
-  return clean.endsWith('.pdf') || !!fileName?.toLowerCase().endsWith('.pdf');
+  // const clean = url.split('?')[0].toLowerCase();
+  // return clean.endsWith('.pdf') || !!fileName?.toLowerCase().endsWith('.pdf');
+  return true
 }
 
 export function MediaViewerModal({ isOpen, onClose, type, url, fileName }: MediaViewerModalProps) {
