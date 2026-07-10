@@ -43,8 +43,10 @@ export function Sidebar() {
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between border-b border-surface-border px-4 py-3.5">
-        <img src={chatlyIcon} alt="Ch" className="h-8 w-8" />
-        <span className="text-lg font-bold tracking-tight text-ink">Chatly</span>
+        <div className="flex items-center gap-2">
+          <img src={chatlyIcon} alt="Ch" className="h-8 w-8" />
+          <span className="text-lg font-bold tracking-tight text-ink">Chatly</span>
+        </div>
         <div className="flex items-center gap-1">
           {TABS.map((t) => (
             <button
