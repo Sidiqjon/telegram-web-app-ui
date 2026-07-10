@@ -10,8 +10,9 @@ export function UserSearchPanel({ onOpenedChat }: { onOpenedChat: () => void }) 
   const [results, setResults] = useState<PublicUser[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [openingId, setOpeningId] = useState<string | null>(null);
-  const startConversationWithUser = useChatStore((s) => s.startConversationWithUser);
+  const conversations = useChatStore((s) => s.conversations);
   const openConversation = useChatStore((s) => s.openConversation);
+  const openDraftConversation = useChatStore((s) => s.openDraftConversation);
 
   useEffect(() => {
     const trimmed = query.trim();
@@ -36,8 +37,17 @@ export function UserSearchPanel({ onOpenedChat }: { onOpenedChat: () => void }) 
   async function handleSelectUser(user: PublicUser) {
     setOpeningId(user.id);
     try {
-      const conversation = await startConversationWithUser(user);
-      await openConversation(conversation.id);
+      // If we already have a conversation with this person, just open it —
+      // don't touch the backend, and definitely don't create a new one.
+      const existing = conversations.find((c) => c.participant.id === user.id);
+      if (existing) {
+        await openConversation(existing.id);
+      } else {
+        // Nothing is created yet: this only shows a chat pane locally.
+        // The conversation is created on the backend the moment the first
+        // message is actually sent (see MessageInput / sendTextToParticipant).
+        openDraftConversation(user);
+      }
       onOpenedChat();
       setQuery('');
       setResults([]);

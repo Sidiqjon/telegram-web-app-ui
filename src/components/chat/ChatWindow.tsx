@@ -4,19 +4,40 @@ import { useAuthStore } from '../../store/authStore';
 import { MessageBubble } from './MessageBubble';
 import { MessageInput } from './MessageInput';
 import { TypingIndicator } from './TypingIndicator';
+import { ContactInfoPanel } from './ContactInfoPanel';
 import { Avatar } from '../common/Avatar';
 import { Spinner } from '../common/Spinner';
 import { formatDaySeparator, formatLastSeen } from '../../utils/formatTime';
+import { PublicUser } from '../../types/user.types';
+import { ConversationParticipant } from '../../types/conversation.types';
 
 const SCROLL_BOTTOM_THRESHOLD = 120;
 const LOAD_MORE_THRESHOLD = 80;
 
-export function ChatWindow({ conversationId }: { conversationId: string }) {
-  const conversation = useChatStore((s) => s.conversations.find((c) => c.id === conversationId));
-  const messages = useChatStore((s) => s.messages[conversationId] ?? []);
-  const pagination = useChatStore((s) => s.pagination[conversationId]);
+function getFallbackPresence(
+  participant: ConversationParticipant | PublicUser,
+): { isOnline?: boolean; lastSeen?: string } {
+  if ('isOnline' in participant) {
+    return { isOnline: participant.isOnline, lastSeen: participant.lastSeen };
+  }
+  return {};
+}
+
+interface ChatWindowProps {
+  /** Set when viewing an existing conversation. */
+  conversationId?: string;
+  /** Set when this is a brand-new chat (picked from search, nothing sent yet). */
+  draftParticipant?: PublicUser;
+}
+
+export function ChatWindow({ conversationId, draftParticipant }: ChatWindowProps) {
+  const conversation = useChatStore((s) =>
+    conversationId ? s.conversations.find((c) => c.id === conversationId) : undefined,
+  );
+  const messages = useChatStore((s) => (conversationId ? s.messages[conversationId] ?? [] : []));
+  const pagination = useChatStore((s) => (conversationId ? s.pagination[conversationId] : undefined));
   const isLoadingMessages = useChatStore((s) => s.isLoadingMessages);
-  const typingUsers = useChatStore((s) => s.typingUsers[conversationId] ?? []);
+  const typingUsers = useChatStore((s) => (conversationId ? s.typingUsers[conversationId] ?? [] : []));
   const presence = useChatStore((s) => s.presence);
   const openConversation = useChatStore((s) => s.openConversation);
   const closeActiveConversation = useChatStore((s) => s.closeActiveConversation);
@@ -27,9 +48,10 @@ export function ChatWindow({ conversationId }: { conversationId: string }) {
   const prevScrollHeightRef = useRef(0);
   const prevMessageCountRef = useRef(0);
   const [isNearBottom, setIsNearBottom] = useState(true);
+  const [view, setView] = useState<'chat' | 'contact'>('chat');
 
   useEffect(() => {
-    openConversation(conversationId);
+    if (conversationId) openConversation(conversationId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId]);
 
@@ -55,16 +77,17 @@ export function ChatWindow({ conversationId }: { conversationId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages.length]);
 
-  // Reset scroll tracking whenever we switch conversations
+  // Reset scroll tracking and contact-info view whenever we switch chats
   useEffect(() => {
     prevMessageCountRef.current = 0;
     prevScrollHeightRef.current = 0;
     setIsNearBottom(true);
-  }, [conversationId]);
+    setView('chat');
+  }, [conversationId, draftParticipant?.id]);
 
   function handleScroll() {
     const el = scrollRef.current;
-    if (!el) return;
+    if (!el || !conversationId) return;
 
     const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
     setIsNearBottom(distanceFromBottom < SCROLL_BOTTOM_THRESHOLD);
@@ -75,12 +98,27 @@ export function ChatWindow({ conversationId }: { conversationId: string }) {
     }
   }
 
-  if (!conversation) return null;
+  // Resolve a single "participant" shape whether we're in a real conversation
+  // or a draft (search result) chat that hasn't been created yet.
+  const participant = conversation?.participant ?? draftParticipant;
+  if (!participant) return null;
 
-  const { participant } = conversation;
+  const fallbackPresence = getFallbackPresence(participant);
   const participantPresence = presence[participant.id];
-  const isOnline = participantPresence?.isOnline ?? participant.isOnline ?? false;
+  const isOnline = participantPresence?.isOnline ?? fallbackPresence.isOnline ?? false;
+  const lastSeenValue = participantPresence?.lastSeen ?? fallbackPresence.lastSeen;
   const isTyping = typingUsers.includes(participant.id);
+
+  if (view === 'contact') {
+    return (
+      <ContactInfoPanel
+        participant={participant}
+        isOnline={isOnline}
+        lastSeen={lastSeenValue}
+        onBack={() => setView('chat')}
+      />
+    );
+  }
 
   return (
     <div className="flex h-full flex-col bg-surface-muted">
@@ -94,13 +132,26 @@ export function ChatWindow({ conversationId }: { conversationId: string }) {
             <path d="M15 18l-6-6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </button>
-        <Avatar src={participant.avatarUrl} name={participant.fullName} showOnlineDot isOnline={isOnline} />
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-ink">{participant.fullName}</p>
-          <p className="truncate text-xs text-ink-faint">
-            {isTyping ? <span className="font-medium text-brand-600">typing…</span> : isOnline ? 'online' : formatLastSeen(participantPresence?.lastSeen ?? participant.lastSeen)}
-          </p>
-        </div>
+
+        <button
+          onClick={() => setView('contact')}
+          className="flex min-w-0 flex-1 items-center gap-3 rounded-lg py-0.5 text-left hover:bg-surface-muted"
+          aria-label="View contact info"
+        >
+          <Avatar src={participant.avatarUrl} name={participant.fullName} showOnlineDot isOnline={isOnline} />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold text-ink">{participant.fullName}</p>
+            <p className="truncate text-xs text-ink-faint">
+              {isTyping ? (
+                <span className="font-medium text-brand-600">typing…</span>
+              ) : isOnline ? (
+                'online'
+              ) : (
+                formatLastSeen(lastSeenValue)
+              )}
+            </p>
+          </div>
+        </button>
       </header>
 
       <div ref={scrollRef} onScroll={handleScroll} className="thin-scrollbar min-h-0 flex-1 overflow-y-auto px-3 py-4 sm:px-6">
@@ -110,9 +161,14 @@ export function ChatWindow({ conversationId }: { conversationId: string }) {
           </div>
         )}
 
-        {isLoadingMessages && messages.length === 0 ? (
+        {conversationId && isLoadingMessages && messages.length === 0 ? (
           <div className="flex h-full items-center justify-center text-brand-500">
             <Spinner size={24} />
+          </div>
+        ) : messages.length === 0 ? (
+          <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
+            <p className="text-sm font-medium text-ink">Say hello 👋</p>
+            <p className="text-sm text-ink-faint">Send a message to start chatting with {participant.fullName}.</p>
           </div>
         ) : (
           <div className="flex flex-col gap-1.5">
@@ -145,7 +201,7 @@ export function ChatWindow({ conversationId }: { conversationId: string }) {
         )}
       </div>
 
-      <MessageInput conversationId={conversationId} />
+      <MessageInput conversationId={conversationId} draftParticipant={!conversationId ? draftParticipant : undefined} />
     </div>
   );
 }

@@ -1,9 +1,17 @@
 import { ChangeEvent, KeyboardEvent, useRef, useState } from 'react';
 import { useChatStore } from '../../store/chatStore';
+import { PublicUser } from '../../types/user.types';
 
 const MAX_FILE_SIZE_MB = 20;
 
-export function MessageInput({ conversationId }: { conversationId: string }) {
+interface MessageInputProps {
+  /** Set when chatting in an existing conversation. */
+  conversationId?: string;
+  /** Set when this is a brand-new chat — nothing exists on the backend yet. */
+  draftParticipant?: PublicUser;
+}
+
+export function MessageInput({ conversationId, draftParticipant }: MessageInputProps) {
   const [text, setText] = useState('');
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [pendingType, setPendingType] = useState<'IMAGE' | 'FILE' | null>(null);
@@ -16,20 +24,27 @@ export function MessageInput({ conversationId }: { conversationId: string }) {
 
   const sendText = useChatStore((s) => s.sendText);
   const sendFile = useChatStore((s) => s.sendFile);
+  const sendTextToParticipant = useChatStore((s) => s.sendTextToParticipant);
+  const sendFileToParticipant = useChatStore((s) => s.sendFileToParticipant);
   const setTyping = useChatStore((s) => s.setTyping);
 
   function handleTextChange(e: ChangeEvent<HTMLTextAreaElement>) {
     setText(e.target.value);
-    setTyping(conversationId, e.target.value.trim().length > 0);
+    // Typing indicators only make sense once a real conversation/room exists.
+    if (conversationId) setTyping(conversationId, e.target.value.trim().length > 0);
   }
 
   async function handleSendText() {
     const trimmed = text.trim();
     if (!trimmed) return;
     setText('');
-    setTyping(conversationId, false);
     try {
-      await sendText(conversationId, trimmed);
+      if (conversationId) {
+        setTyping(conversationId, false);
+        await sendText(conversationId, trimmed);
+      } else if (draftParticipant) {
+        await sendTextToParticipant(draftParticipant, trimmed);
+      }
     } catch {
       setFileError('Message failed to send. Please try again.');
     }
@@ -75,7 +90,11 @@ export function MessageInput({ conversationId }: { conversationId: string }) {
     setIsUploading(true);
     setFileError(null);
     try {
-      await sendFile(conversationId, pendingFile, pendingType);
+      if (conversationId) {
+        await sendFile(conversationId, pendingFile, pendingType);
+      } else if (draftParticipant) {
+        await sendFileToParticipant(draftParticipant, pendingFile, pendingType);
+      }
       cancelPendingFile();
     } catch {
       setFileError('Upload failed. Please try again.');

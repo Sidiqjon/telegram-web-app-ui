@@ -21,6 +21,9 @@ interface PaginationInfo {
 interface ChatState {
   conversations: Conversation[];
   activeConversationId: string | null;
+  /** A user selected from search who we haven't actually messaged yet — no
+   *  conversation exists in the DB until the first message is sent. */
+  draftParticipant: PublicUser | null;
   messages: Record<string, Message[]>; // conversationId -> messages, oldest first
   pagination: Record<string, PaginationInfo>;
   typingUsers: Record<string, string[]>; // conversationId -> userIds currently typing
@@ -35,6 +38,12 @@ interface ChatState {
   openConversation: (conversationId: string) => Promise<void>;
   closeActiveConversation: () => void;
   startConversationWithUser: (participant: PublicUser) => Promise<Conversation>;
+  /** Opens a chat pane for a searched user WITHOUT creating a conversation yet. */
+  openDraftConversation: (participant: PublicUser) => void;
+  /** Used by the composer when there's no real conversation yet: creates it
+   *  on first send, then sends the message. */
+  sendTextToParticipant: (participant: PublicUser, text: string) => Promise<void>;
+  sendFileToParticipant: (participant: PublicUser, file: File, type: 'IMAGE' | 'FILE') => Promise<void>;
   loadMoreMessages: (conversationId: string) => Promise<void>;
   sendText: (conversationId: string, text: string) => Promise<void>;
   sendFile: (conversationId: string, file: File, type: 'IMAGE' | 'FILE') => Promise<void>;
@@ -63,6 +72,7 @@ let typingTimeout: ReturnType<typeof setTimeout> | null = null;
 export const useChatStore = create<ChatState>((set, get) => ({
   conversations: [],
   activeConversationId: null,
+  draftParticipant: null,
   messages: {},
   pagination: {},
   typingUsers: {},
@@ -88,7 +98,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   openConversation: async (conversationId) => {
-    set({ activeConversationId: conversationId, unreadCounts: { ...get().unreadCounts, [conversationId]: 0 } });
+    set({
+      activeConversationId: conversationId,
+      draftParticipant: null,
+      unreadCounts: { ...get().unreadCounts, [conversationId]: 0 },
+    });
     socketService.emit('joinConversation', { conversationId });
 
     if (!get().messages[conversationId]) {
@@ -124,7 +138,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
     messagesService.markRead(conversationId).catch(() => {});
   },
 
-  closeActiveConversation: () => set({ activeConversationId: null }),
+  closeActiveConversation: () => set({ activeConversationId: null, draftParticipant: null }),
+
+  openDraftConversation: (participant) => {
+    set({ activeConversationId: null, draftParticipant: participant });
+  },
 
   startConversationWithUser: async (participant) => {
     const conversation = await conversationsService.findOrCreate(participant.id);
@@ -137,6 +155,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
       return { conversations: sortConversations(next) };
     });
     return conversation;
+  },
+
+  sendTextToParticipant: async (participant, text) => {
+    const conversation = await get().startConversationWithUser(participant);
+    set({ activeConversationId: conversation.id, draftParticipant: null });
+    await get().sendText(conversation.id, text);
+  },
+
+  sendFileToParticipant: async (participant, file, type) => {
+    const conversation = await get().startConversationWithUser(participant);
+    set({ activeConversationId: conversation.id, draftParticipant: null });
+    await get().sendFile(conversation.id, file, type);
   },
 
   loadMoreMessages: async (conversationId) => {
@@ -309,6 +339,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({
       conversations: [],
       activeConversationId: null,
+      draftParticipant: null,
       messages: {},
       pagination: {},
       typingUsers: {},

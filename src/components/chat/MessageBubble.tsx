@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Message } from '../../types/message.types';
 import { formatMessageTime } from '../../utils/formatTime';
 import { MessageStatusTicks } from './MessageStatusTicks';
+import { MediaViewerModal } from './MediaViewerModal';
 import { useChatStore } from '../../store/chatStore';
 
 interface MessageBubbleProps {
@@ -24,6 +25,7 @@ function getFileNameFromUrl(url: string): string {
 export function MessageBubble({ message, isOwn, recipientId, showSender }: MessageBubbleProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [viewerOpen, setViewerOpen] = useState(false);
   const [draft, setDraft] = useState(message.text ?? '');
   const editMessage = useChatStore((s) => s.editMessage);
   const deleteMessage = useChatStore((s) => s.deleteMessage);
@@ -88,23 +90,25 @@ export function MessageBubble({ message, isOwn, recipientId, showSender }: Messa
             {message.type === 'TEXT' && <p className="whitespace-pre-wrap break-words">{message.text}</p>}
 
             {message.type === 'IMAGE' && message.fileUrl && (
-              <a href={message.fileUrl} target="_blank" rel="noreferrer">
+              <button
+                type="button"
+                onClick={() => setViewerOpen(true)}
+                className="block overflow-hidden rounded-xl"
+              >
                 <img
                   src={message.fileUrl}
                   alt="Shared image"
-                  className="max-h-72 w-full rounded-xl object-cover"
+                  className="block max-h-72 w-auto max-w-[280px] rounded-xl object-cover"
                   loading="lazy"
                 />
-              </a>
+              </button>
             )}
 
             {message.type === 'FILE' && message.fileUrl && (
-              <a
-                href={message.fileUrl}
-                target="_blank"
-                rel="noreferrer"
-                download
-                className={`flex items-center gap-2.5 rounded-lg px-2 py-2 ${isOwn ? 'bg-white/10' : 'bg-surface-muted'}`}
+              <button
+                type="button"
+                onClick={() => setViewerOpen(true)}
+                className={`flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left ${isOwn ? 'bg-white/10' : 'bg-surface-muted'}`}
               >
                 <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${isOwn ? 'bg-white/15' : 'bg-white'}`}>
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
@@ -117,10 +121,10 @@ export function MessageBubble({ message, isOwn, recipientId, showSender }: Messa
                     <path d="M14 3v5h5" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
                   </svg>
                 </span>
-                <span className="min-w-0 flex-1 truncate text-sm underline-offset-2 hover:underline">
+                <span className="min-w-0 flex-1 truncate text-sm">
                   {getFileNameFromUrl(message.fileUrl)}
                 </span>
-              </a>
+              </button>
             )}
           </>
         )}
@@ -174,6 +178,16 @@ export function MessageBubble({ message, isOwn, recipientId, showSender }: Messa
           </div>
         )}
       </div>
+
+      {(message.type === 'IMAGE' || message.type === 'FILE') && message.fileUrl && (
+        <MediaViewerModal
+          isOpen={viewerOpen}
+          onClose={() => setViewerOpen(false)}
+          type={message.type}
+          url={message.fileUrl}
+          fileName={message.type === 'FILE' ? getFileNameFromUrl(message.fileUrl) : undefined}
+        />
+      )}
     </div>
   );
 }
