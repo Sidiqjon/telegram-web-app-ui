@@ -63,13 +63,13 @@ export function MediaViewerModal({ isOpen, onClose, type, url, fileName }: Media
         )}
 
         {showPdf && (
-          // <div className="h-[140vh] w-[120vw]  overflow-hidden rounded-lg object-fill shadow-2xl">
+          <div className="h-[85vh] w-[80vw] max-w-5xl rounded-lg overflow-hidden bg-white shadow-2xl">
             <iframe
               src={url}
-              title={fileName ?? 'Document preview'}
-              className="border-0  h-[120vh] w-[100vw]  overflow-hidden rounded-lg object-fill shadow-2xl"
+              title={fileName ?? "Document preview"}
+              className="h-full w-full border-0"
             />
-          // </div>
+          </div>
         )}
 
         {type === 'FILE' && !showPdf && (
