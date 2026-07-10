@@ -4,6 +4,7 @@ import { UserSearchPanel } from '../search/UserSearchPanel';
 import { ProfilePanel } from '../profile/ProfilePanel';
 import { Avatar } from '../common/Avatar';
 import { useAuthStore } from '../../store/authStore';
+import chatlyIcon from '../../assets/chatly.webp';
 
 type SidebarTab = 'chats' | 'search' | 'profile';
 
@@ -42,6 +43,7 @@ export function Sidebar() {
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between border-b border-surface-border px-4 py-3.5">
+        <img src={chatlyIcon} alt="Ch" className="h-8 w-8" />
         <span className="text-lg font-bold tracking-tight text-ink">Chatly</span>
         <div className="flex items-center gap-1">
           {TABS.map((t) => (
