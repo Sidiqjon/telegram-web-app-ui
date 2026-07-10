@@ -63,7 +63,7 @@ export function MediaViewerModal({ isOpen, onClose, type, url, fileName }: Media
         )}
 
         {showPdf && (
-          <div className="max-h-[90vh] max-w-[100vw]  overflow-hidden rounded-lg object-contain shadow-2xl">
+          <div className="max-h-[140vh] max-w-[120vw]  overflow-hidden rounded-lg object-cover shadow-2xl">
             <iframe
               src={url}
               title={fileName ?? 'Document preview'}
